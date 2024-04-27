@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-public class CardGameManager : MonoBehaviour
+public class CardGameManager : MonoBehaviour, IDataPersistence
 {
 
     public static CardGameManager Instance;
@@ -11,10 +11,6 @@ public class CardGameManager : MonoBehaviour
     // gameobject instance
     [SerializeField]
     private GameObject prefab;
-    // parent object of cards
-    //[SerializeField]
-    //private GameObject cardList;
-    // sprite for card back
     [SerializeField]
     private Sprite cardBack;
     // all possible sprite for card front
@@ -34,6 +30,7 @@ public class CardGameManager : MonoBehaviour
     // other UI
     [SerializeField] private TextMeshProUGUI sizeLabel;
     [SerializeField] private Slider sizeSlider;
+    [SerializeField] private Button loadGameBtn;
 
     private float time;
     private int spriteSelected;
@@ -41,6 +38,9 @@ public class CardGameManager : MonoBehaviour
     private int cardLeft;
     private bool gameStart;
     private bool giveUp;
+    private bool gameLoaded = false;
+    private List<bool> activePositions = new List<bool>();
+    private List<int> spriteIDs = new List<int>();
     void Awake()
     {
         Instance = this;
@@ -50,14 +50,7 @@ public class CardGameManager : MonoBehaviour
         gameStart = false;
         gameplayPanel.SetActive(false);
     }
-    // Purpose is to allow preloading of panel, so that it does not lag when it loads
-    // Call this in the start method to preload all sprites at start of the script
-    private void PreloadCardImage()
-    {
-        //for (int i = 0; i < sprites.Length; i++)
-        //    spritePreload.SpriteID = i;
-        //spritePreload.gameObject.SetActive(false);
-    }
+
     // Start a game
     public void StartCardGame()
     {
@@ -74,39 +67,34 @@ public class CardGameManager : MonoBehaviour
         // allocate sprite to card
         SpriteCardAllocation();
         StartCoroutine(HideFace());
-        time = 0;
+        if(!gameLoaded)
+            time = 0;
     }
 
     // Initialize cards, size, and position based on size of game
     private void SetGamePanel()
     {
         // if game is odd, we should have 1 card less
+        layout.constraintCount = gameSize;
         int isOdd = gameSize % 2;
-       
-        cards = new Card[gameSize * gameSize - isOdd];
-        // remove all gameobject from parent
-        // calculate position between each card & start position of each card based on the Panel
-        //  RectTransform panelsize = gameplayPanel.transform.GetComponent(typeof(RectTransform)) as RectTransform;
-        //float row_size = panelsize.sizeDelta.x;
-        //float col_size = panelsize.sizeDelta.y;
-        //float scale = 1.0f / gameSize;
-        //float xInc = row_size / gameSize;
-        //float yInc = col_size / gameSize;
-        //float curX = -xInc * (float)(gameSize / 2);
-        //float curY = -yInc * (float)(gameSize / 2);
-        ClearBoard();
-        if (isOdd == 0)
+        int tempSize = gameSize * gameSize - isOdd;
+        cards = new Card[tempSize];
+        for(int i=0; i<tempSize; i++)
         {
-          //  curX += xInc / 2;
-           // curY += yInc / 2;
+            activePositions.Add(true);
         }
-        // float initialX = curX;
-        // for each in y-axis
+        if(spriteIDs.Count == 0)
+        {
+            for (int i = 0; i < tempSize / 2; i++)
+            {
+                spriteIDs.Add(-1);
+            }
+        }
+
+        ClearBoard();
         GameObject tempCard = null;
         for (int i = 0; i < gameSize; i++)
         {
-          //  curX = initialX;
-            // for each in x-axis
             for (int j = 0; j < gameSize; j++)
             {
                 GameObject c;
@@ -114,29 +102,17 @@ public class CardGameManager : MonoBehaviour
                 if (isOdd == 1 && i == (gameSize - 1) && j == (gameSize - 1))
                 {
                     tempCard = Instantiate(fakeCard);
-                    //int index = gameSize / 2 * gameSize + gameSize / 2;
-                    //c = cards[index].gameObject;
                 }
                 else
                 {
                     // create card prefab
                     c = Instantiate(prefab, layout.transform);
-                    
-                    // assign parent
-                   // c.transform.parent = cardList.transform;
-
                     int index = i * gameSize + j;
                     cards[index] = c.GetComponent<Card>();
                     cards[index].ID = index;
-                    // modify its size
-                    //c.transform.localScale = new Vector3(scale, scale);
+                    
                 }
-                // assign location
-               // c.transform.localPosition = new Vector3(curX, curY, 0);
-               // curX += xInc;
-
             }
-           // curY += yInc;
         }
         if(isOdd == 1)
         {
@@ -145,9 +121,11 @@ public class CardGameManager : MonoBehaviour
             int index = (int)Mathf.Round(pos);//+ 1;
             Debug.Log(index);
             tempCard.transform.parent = layout.transform;
+            tempCard.transform.localScale = new Vector3(1, 1, 1);
             tempCard.transform.SetSiblingIndex(index);
         }
-    }
+        
+    } 
     void ClearBoard()
     {
         foreach (Transform child in layout.transform)
@@ -169,27 +147,38 @@ public class CardGameManager : MonoBehaviour
         for (int i = 0; i < cards.Length; i++)
             cards[i].Flip();
         yield return new WaitForSeconds(0.5f);
+
     }
     // Allocate pairs of sprite to card instances
     private void SpriteCardAllocation()
     {
         int i, j;
         int[] selectedID = new int[cards.Length / 2];
-        // sprite selection
-        for (i = 0; i < cards.Length / 2; i++)
+        if (gameLoaded)
         {
-            // get a random sprite
-            int value = Random.Range(0, sprites.Length - 1);
-            // check previous number has not been selection
-            // if the number of cards is larger than number of sprites, it will reuse some sprites
-            for (j = i; j > 0; j--)
+            selectedID = new int[spriteIDs.Count];
+            for (i = 0; i < spriteIDs.Count; i++)
             {
-                if (selectedID[j - 1] == value)
-                    value = (value + 1) % sprites.Length;
+                selectedID[i] = spriteIDs[i];
             }
-            selectedID[i] = value;
         }
-
+        else
+        {
+            // sprite selection
+            for (i = 0; i < cards.Length / 2; i++)
+            {
+                // get a random sprite
+                int value = Random.Range(0, sprites.Length - 1);
+                // check previous number has not been selection
+                // if the number of cards is larger than number of sprites, it will reuse some sprites
+                for (j = i; j > 0; j--)
+                {
+                    if (selectedID[j - 1] == value)
+                        value = (value + 1) % sprites.Length;
+                }
+                selectedID[i] = value;
+            }
+        }
         // card sprite deallocation
         for (i = 0; i < cards.Length; i++)
         {
@@ -199,21 +188,55 @@ public class CardGameManager : MonoBehaviour
         }
         // card sprite pairing allocation
         for (i = 0; i < cards.Length / 2; i++)
+        {
+            int lastID = -1;
             for (j = 0; j < 2; j++)
             {
                 int value = Random.Range(0, cards.Length - 1);
+                
                 while (cards[value].SpriteID != -1)
+                {
                     value = (value + 1) % cards.Length;
+                    Debug.Log(value);
+                }
+                Debug.LogError(value);
 
+                if (gameLoaded && activePositions[value] == false)
+                {
+                    if(lastID == -1)
+                    {
+                        lastID = selectedID[i];
+                    }
+                    else
+                    {
+                        selectedID[i] = lastID;
+                    }
+                    cards[value].QuickFade();
+                    cardLeft--;
+                }
                 cards[value].SpriteID = selectedID[i];
+                spriteIDs[i] = selectedID[i];
+                
             }
-
+        }
+        //Debug.Log("gl: " + gameLoaded);
+        //if (gameLoaded)
+        //{
+        //    for (i = 0; i < cards.Length; i++)
+        //    {
+        //        if (activePositions[i] == false)
+        //        {
+        //            cards[i].QuickFade();
+        //            cardLeft--;
+        //        }
+        //    }
+        //}
     }
     // Slider update gameSize
     public void SetGameSize()
     {
         gameSize = (int)sizeSlider.value;
-        layout.constraintCount = gameSize;
+        
         sizeLabel.text = gameSize + " X " + gameSize;
     }
     // return Sprite based on its id
@@ -249,6 +272,9 @@ public class CardGameManager : MonoBehaviour
                 //correctly matched
                 cards[cardSelected].Inactive();
                 cards[cardId].Inactive();
+                activePositions[cardId] = false;
+                activePositions[cardSelected] = false;
+                //spriteIDs.Remove(spriteId);
                 cardLeft -= 2;
                 CheckGameWin();
             }
@@ -278,6 +304,11 @@ public class CardGameManager : MonoBehaviour
             scoreLabel.text = "Score: "+timeLabel.text;
         else
             scoreLabel.text = "Score: 0";
+        DataPersistenceManager.instance.ResetData();
+        gameLoaded = false;
+        spriteIDs.Clear();
+        activePositions.Clear();
+        loadGameBtn.interactable = false;
         gameStart = false;
         winPanel.SetActive(true);
         ClearBoard();
@@ -300,5 +331,53 @@ public class CardGameManager : MonoBehaviour
             time += Time.deltaTime;
             timeLabel.text = "Time: " + Mathf.Round(time) + "s";
         }
+    }
+    public void LoadGame()
+    {
+        
+        gameLoaded = true;
+    }
+    public void LoadData(GameData data)
+    {
+        gameSize = data.gameSize;
+        int isOdd = gameSize % 2;
+        int temp = (gameSize * gameSize) - isOdd;
+        
+        time = data.gameTimer;
+        for(int i=0; i<temp; i++)
+        {
+            activePositions.Add(data.GetPosition(i));
+            
+        }
+        for (int i = 0; i < data.spriteIDs.Count; i++)
+        {
+            spriteIDs.Add(data.GetID(i));
+        }
+        loadGameBtn.interactable = true;
+    }
+
+    public void SaveData(GameData data)
+    {
+        
+        data.gameSize = gameSize;
+        data.gameTimer = time;
+        int isOdd = gameSize % 2;
+        int temp = (gameSize * gameSize) - isOdd;
+        data.positions.Clear();
+        data.spriteIDs.Clear();
+        for (int i = 0; i < temp; i++)
+        {
+            data.SetPosition(i, activePositions[i]);
+        }
+        for (int i = 0; i < spriteIDs.Count; i++)
+        {
+            data.SetID(i, spriteIDs[i]);
+        }
+    }
+    private void OnApplicationQuit()
+    {
+        Debug.Log("saving game...");
+        if(gameStart)
+            DataPersistenceManager.instance.SaveGame();
     }
 }

@@ -72,6 +72,11 @@ public class Card : MonoBehaviour
             yield return null;
         }
     }
+    public void QuickFade()
+    {
+        Debug.Log("fading..." + gameObject.name);
+        img.color = Color.clear;
+    }
     // set card to be active color
     public void Active()
     {
@@ -104,7 +109,9 @@ public class Card : MonoBehaviour
     // card onclick event
     public void CardBtn()
     {
+        Debug.Log("f: " + flipped + " t: " + turning);
         if (flipped || turning) return;
+        Debug.Log("ctr: "+!CardGameManager.Instance.canClick());
         if (!CardGameManager.Instance.canClick()) return;
         Flip();
         StartCoroutine(SelectionEvent());
