@@ -1,0 +1,1 @@
+There is small bug after loading the saved state of the game which sometimes generate the one wrong pair I was not able to solve it because of time shortage. I appears rarely but I thought I should mention in case you face it. 
