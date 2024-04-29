@@ -187,9 +187,10 @@ public class CardGameManager : MonoBehaviour, IDataPersistence
             cards[i].ResetRotation();
         }
         // card sprite pairing allocation
+        int lastID = -1;
         for (i = 0; i < cards.Length / 2; i++)
         {
-            int lastID = -1;
+            
             for (j = 0; j < 2; j++)
             {
                 int value = Random.Range(0, cards.Length - 1);
@@ -210,6 +211,7 @@ public class CardGameManager : MonoBehaviour, IDataPersistence
                     else
                     {
                         selectedID[i] = lastID;
+                        lastID = -1;
                     }
                     cards[value].QuickFade();
                     cardLeft--;
